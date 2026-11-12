@@ -1,8 +1,16 @@
 name: Publicar versão (Windows)
 
-# Rodar manualmente: aba Actions > "Publicar versão (Windows)" > Run workflow.
-# Antes, suba a versão no package.json (ex.: npm.cmd version 0.1.1 --no-git-tag-version) e faça push.
+# Publica sozinho a cada push na main que mude o jogo ou o app (e também pelo botão Run workflow).
+# A versão é gerada aqui: 0.1.<número da execução>, sempre maior que a anterior. Não precisa mexer no package.json.
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'game/**'
+      - 'electron/**'
+      - 'build/**'
+      - 'package.json'
+      - 'package-lock.json'
   workflow_dispatch:
 
 permissions:
@@ -17,8 +25,6 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          lfs: true
 
       - uses: actions/setup-node@v4
         with:
@@ -27,6 +33,9 @@ jobs:
 
       - name: Instalar dependências
         run: npm ci
+
+      - name: Definir versão
+        run: npm version 0.1.${{ github.run_number }} --no-git-tag-version --allow-same-version
 
       - name: Gerar instalador e publicar no GitHub Releases
         run: npm run release

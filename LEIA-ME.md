@@ -40,10 +40,8 @@ git push -u origin main
 O `game/index.html` tem cerca de 49 MB. O GitHub aceita, mas avisa acima de 50 MB por arquivo.
 
 ## Publicar uma versão
-1. Atualize o jogo (`npm.cmd run prepare-game` copia o HTML mais novo).
-2. Suba a versão: `npm.cmd version 0.1.1 --no-git-tag-version`
-3. `git add . ; git commit -m "Pirate MMO 0.1.1" ; git push`
-4. No GitHub: aba **Actions > Publicar versão (Windows) > Run workflow**. O GitHub compila e cria o release com `Pirate-MMO-Setup-0.1.1.exe`, `.blockmap` e `latest.yml`.
+Dê dois cliques em **Publicar Pirate MMO** (área de trabalho) ou rode `publicar.cmd`. Ele copia o HTML mais novo, faz o commit e o push.
+O GitHub Actions publica sozinho a cada push que mude o jogo ou o app, com a versão `0.1.<número da execução>` (sempre maior; não precisa mexer no package.json). O release traz `Pirate-MMO-Setup-<versão>.exe`, `.blockmap` e `latest.yml`.
 
 Publicar do seu PC (opcional, em vez do Actions): crie um token clássico com escopo `repo` e use-o **só na sessão**:
 ```powershell
