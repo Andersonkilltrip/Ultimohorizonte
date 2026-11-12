@@ -11,6 +11,7 @@ on:
       - 'build/**'
       - 'package.json'
       - 'package-lock.json'
+      - '.github/workflows/release.yml'
   workflow_dispatch:
 
 permissions:
@@ -24,9 +25,9 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -37,7 +38,16 @@ jobs:
       - name: Definir versão
         run: npm version 0.1.${{ github.run_number }} --no-git-tag-version --allow-same-version
 
-      - name: Gerar instalador e publicar no GitHub Releases
-        run: npm run release
+      - name: Gerar instalador
+        run: npm run build
+
+      - name: Publicar no GitHub Releases
+        shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $v = node -p "require('./package.json').version"
+          Get-ChildItem dist -File | Format-Table Name, Length
+          $files = "dist/Pirate-MMO-Setup-$v.exe", "dist/Pirate-MMO-Setup-$v.exe.blockmap", "dist/latest.yml"
+          foreach ($f in $files) { if (-not (Test-Path $f)) { throw "Arquivo ausente: $f" } }
+          gh release create "v$v" @files --title "Pirate MMO $v" --notes "Versão $v. Quem já tem o jogo recebe a atualização ao abrir."
