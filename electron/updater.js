@@ -19,6 +19,8 @@ function init(w) {
   // em desenvolvimento (npm start) não há app-update.yml: não procura atualização
   const testFeed = process.env.PM_UPDATE_URL;   // teste local: servidor genérico com os arquivos do dist
   if (!app.isPackaged && !testFeed) { log('modo desenvolvimento: atualização desligada'); return; }
+  // instalador de teste (não publicado): não troca a si mesmo pela versão do GitHub
+  try { if (require('../package.json').pmNoUpdate) { log('instalador de teste: atualização desligada'); return; } } catch {}
   try { ({ autoUpdater } = require('electron-updater')); } catch (e) { log('electron-updater ausente', e.message); return; }
   autoUpdater.autoDownload = false;            // pergunta antes de baixar
   autoUpdater.autoInstallOnAppQuit = !TEST;    // se baixou e o jogador não reiniciou, instala ao fechar (nunca no modo de teste)

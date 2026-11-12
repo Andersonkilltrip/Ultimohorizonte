@@ -15,6 +15,14 @@ const RES = [[1280, 720], [1600, 900], [1920, 1080], [2560, 1440]];
 // app:// com origem fixa: o localStorage do jogo (saves e opções) fica sempre no mesmo lugar e sobrevive às atualizações
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
 
+// Servidor multiplayer (Colyseus): variável PM_SERVER > %APPDATA%\Pirate MMO\servidor.json {"url":"..."} > "mpServer" do package.json.
+// Vazio = jogo offline.
+function mpServer() {
+  if (process.env.PM_SERVER) return process.env.PM_SERVER.trim();
+  try { const j = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'servidor.json'), 'utf8')); if (j && typeof j.url === 'string') return j.url.trim(); } catch {}
+  try { return String(require('../package.json').mpServer || '').trim(); } catch { return ''; }
+}
+
 function loadSettings() { try { return JSON.parse(fs.readFileSync(SETTINGS_FILE(), 'utf8')); } catch { return { w: 1600, h: 900, full: false }; } }
 function saveSettings(s) { try { fs.mkdirSync(path.dirname(SETTINGS_FILE()), { recursive: true }); fs.writeFileSync(SETTINGS_FILE(), JSON.stringify(s)); } catch {} }
 
@@ -76,6 +84,7 @@ function buildMenu() {
     ] },
     { label: 'Ajuda', submenu: [
       { label: 'Procurar atualizações', click: () => updater.check(true) },
+      { label: 'Servidor online', click: () => dialog.showMessageBox(win, { type: 'info', title: 'Pirate MMO', message: mpServer() ? 'Servidor: ' + mpServer() : 'Sem servidor configurado (jogo offline).', detail: 'Para trocar, crie ' + path.join(app.getPath('userData'), 'servidor.json') + ' com {"url":"https://seu-servidor"} e reabra o jogo.' }) },
       { label: 'Sobre o Pirate MMO', click: () => dialog.showMessageBox(win, { type: 'info', title: 'Pirate MMO', message: 'Pirate MMO', detail: 'Versão ' + app.getVersion() }) }
     ] }
   ];
@@ -91,6 +100,7 @@ function createWindow() {
     icon: path.join(__dirname, '..', 'build', 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      additionalArguments: mpServer() ? ['--pm-server=' + encodeURIComponent(mpServer())] : [],
       contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true,
       spellcheck: false, backgroundThrottling: false
     }
@@ -121,6 +131,13 @@ async function selfTest(w) {
   try {
     info = await w.webContents.executeJavaScript(`(()=>{const q=s=>!!document.querySelector(s);return{title:document.title,menu:q('#title'),canvas:document.querySelectorAll('canvas').length,webgl:!!document.createElement('canvas').getContext('webgl'),ls:(()=>{try{localStorage.setItem('pm_t','1');return localStorage.getItem('pm_t')==='1'}catch(e){return false}})(),versao:(document.getElementById('pmVersion')||{}).textContent||null}})()`);
   } catch (e) { errors.push('exec ' + e.message); }
+  // PM_SELFTEST_MP=1: começa um jogo e confere a conexão com o servidor Colyseus (PM_SERVER)
+  if (process.env.PM_SELFTEST_MP === '1') {
+    try {
+      info.online = await w.webContents.executeJavaScript(`(async()=>{for(let i=0;i<80&&!(typeof ready!='undefined'&&ready);i++)await new Promise(r=>setTimeout(r,250));const o=mk();o.name='Electron';start(o);for(let i=0;i<40&&!(window.NET&&NET.status==='online');i++)await new Promise(r=>setTimeout(r,250));await new Promise(r=>setTimeout(r,1500));return{servidor:window.MP_SERVER||null,status:NET.status,erro:NET.err,sessao:NET.room&&NET.room.sessionId,outros:[...NET.others.values()].map(r=>r.p.name),enviados:NET.sent}})()`);
+      if (!info.online || info.online.status !== 'online') errors.push('online: ' + JSON.stringify(info.online));
+    } catch (e) { errors.push('online ' + e.message); }
+  }
   fs.writeFileSync(out, JSON.stringify({ ok: errors.length === 0 && info.menu && info.ls, version: app.getVersion(), info, errors }, null, 2));
   app.exit(0);
 }

@@ -7,6 +7,7 @@
   "private": true,
   "author": "Pirate MMO",
   "gameSource": "../onepiece_hd2d__67_navegacao_corrigida.html",
+  "mpServer": "https://uh-server-mpnx.onrender.com",
   "scripts": {
     "prepare-game": "node scripts/copy-game.js",
     "start": "node scripts/copy-game.js && electron .",

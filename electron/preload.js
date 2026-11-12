@@ -1,6 +1,12 @@
 'use strict';
 // Preload isolado: só mostra a versão e o progresso da atualização por cima do jogo (sem tocar no HUD nem no código do jogo).
-const { ipcRenderer } = require('electron');
+const { ipcRenderer, contextBridge } = require('electron');
+
+// Endereço do servidor multiplayer (Colyseus), decidido pelo processo principal.
+// O jogo lê window.MP_SERVER; sem endereço, joga offline como sempre.
+const arg = process.argv.find(a => a.startsWith('--pm-server='));
+const MP_SERVER = arg ? decodeURIComponent(arg.slice('--pm-server='.length)) : '';
+if (MP_SERVER) contextBridge.exposeInMainWorld('MP_SERVER', MP_SERVER);
 
 function ui() {
   if (document.getElementById('pmVersion')) return;
