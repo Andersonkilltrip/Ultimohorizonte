@@ -1,6 +1,6 @@
 @echo off
-rem Publica a versão atual do jogo: copia o HTML, faz o commit e envia ao GitHub.
-rem O GitHub Actions gera o instalador e os jogadores recebem a atualização ao abrir o jogo.
+rem Publica a versao atual do jogo: copia o HTML, faz o commit e envia ao GitHub.
+rem O GitHub Actions gera o instalador e os jogadores recebem a atualizacao ao abrir o jogo.
 cd /d "%~dp0"
 call npm.cmd run prepare-game || goto erro
 git add -A || goto erro
