@@ -1,0 +1,71 @@
+{
+  "name": "pirate-mmo",
+  "productName": "Pirate MMO",
+  "version": "0.1.0",
+  "description": "Pirate MMO — cliente Windows com atualização automática",
+  "main": "electron/main.js",
+  "private": true,
+  "author": "Pirate MMO",
+  "gameSource": "../onepiece_hd2d__67_navegacao_corrigida.html",
+  "scripts": {
+    "prepare-game": "node scripts/copy-game.js",
+    "start": "node scripts/copy-game.js && electron .",
+    "selftest": "node scripts/copy-game.js && electron . --selftest",
+    "build": "node scripts/copy-game.js && electron-builder --win nsis --publish never",
+    "release": "node scripts/check-publish.js && node scripts/copy-game.js && electron-builder --win nsis --publish always"
+  },
+  "build": {
+    "appId": "com.piratemmo.app",
+    "productName": "Pirate MMO",
+    "copyright": "Pirate MMO",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "game/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "Pirate-MMO-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Pirate MMO",
+      "uninstallDisplayName": "Pirate MMO",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Andersonkilltrip",
+        "repo": "Ultimohorizonte",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "devDependencies": {
+    "electron": "^45.3.1",
+    "electron-builder": "^26.18.0"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  }
+}
