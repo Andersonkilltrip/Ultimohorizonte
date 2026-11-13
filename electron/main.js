@@ -179,6 +179,7 @@ app.whenReady().then(() => {
   const w = createWindow();
   if (SELFTEST) { selfTest(w); return; }
   if (process.env.PM_DIAG === '1') { require('./diag')(w); return; }
+  if (process.env.PM_DIAG === 'mar') { require('./diag_mar')(w); return; }
   updater.init(w);
 });
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });

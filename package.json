@@ -6,7 +6,7 @@
   "main": "electron/main.js",
   "private": true,
   "author": "Pirate MMO",
-  "gameSource": "../onepiece_hd2d__67_navegacao_corrigida.html",
+  "gameSource": "../onepiece_hd2d__68_oceano_visual_corrigido.html",
   "mpServer": "https://uh-server-mpnx.onrender.com",
   "scripts": {
     "prepare-game": "node scripts/copy-game.js",
