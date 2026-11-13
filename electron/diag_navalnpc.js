@@ -22,21 +22,21 @@ module.exports = async function (win) {
     const f0 = await js(mkFoe); ok('navio pirata criado', !!f0, f0);
     // trocar munição com Q real
     await key('Q'); await wait(300); const am1 = await js(`NAVAL.AM[NAVAL.am].k`); ok('Q troca para corrente', am1 === 'corrente', { am: am1 });
-    await js(`(()=>{const s=__S,a=PS.a+Math.PI/2;s.x=PS.x+Math.cos(a)*110;s.y=PS.y+Math.sin(a)*110;s.v=0;PS.v=0;PS.cd=0;fire(PS,1);return 1})()`); await wait(900);
+    await js(`(()=>{NS=NS.filter(x=>x===__S);const s=__S,a=PS.a+Math.PI/2;s.x=PS.x+Math.cos(a)*110;s.y=PS.y+Math.sin(a)*110;s.v=0;PS.v=0;PS.cd=0;fire(PS,1);return 1})()`); await wait(900);
     const c1 = await js(`({slow:+(__S.slow||0).toFixed(2),hp:__S.hp,min:INV.minerio||0})`); ok('corrente acerta e deixa lento', c1.slow > 0 && c1.min === 3, c1);
     await key('Q'); await wait(200);
-    await js(`(()=>{const s=__S,a=PS.a+Math.PI/2;s.x=PS.x+Math.cos(a)*110;s.y=PS.y+Math.sin(a)*110;PS.cd=0;fire(PS,1);return 1})()`); await wait(700);
+    await js(`(()=>{NS=NS.filter(x=>x===__S);const s=__S,a=PS.a+Math.PI/2;s.x=PS.x+Math.cos(a)*110;s.y=PS.y+Math.sin(a)*110;PS.cd=0;fire(PS,1);return 1})()`); await wait(700);
     const c2 = await js(`({burn:+(__S.burn||0).toFixed(2),hp:__S.hp,pol:INV.polvora||0})`); ok('incendiária põe fogo', c2.burn > 0 && c2.pol === 2, c2);
     await wait(2200); const c3 = await js(`__S.hp`); ok('fogo causa dano com o tempo', c3 < c2.hp, { hp: [c2.hp, c3] }); await shot('fogo');
     // enfiada: o inimigo de proa para o costado do jogador
-    await js(`(()=>{NAVAL.am=0;const s=__S,a=PS.a+Math.PI/2;s.burn=0;s.x=PS.x+Math.cos(a)*110;s.y=PS.y+Math.sin(a)*110;s.a=a;PS.cd=0;window.__h0=s.hp;fl.length=0;fire(PS,1);return 1})()`); await wait(800);
+    await js(`(()=>{NS=NS.filter(x=>x===__S);NAVAL.am=0;const s=__S,a=PS.a+Math.PI/2;s.burn=0;s.x=PS.x+Math.cos(a)*110;s.y=PS.y+Math.sin(a)*110;s.a=a;PS.cd=0;window.__h0=s.hp;fl.length=0;fire(PS,1);return 1})()`); await wait(800);
     const c4 = await js(`({dano:__h0-__S.hp,txt:fl.map(f=>f.s).join('|')})`); ok('tiro de enfiada (+50%)', /Enfiada/.test(c4.txt), c4);
     // metralha: leque de 5 balas
     await js(`(()=>{NAVAL.am=3;PS.cd=0;window.__n0=CB.length;fire(PS,1);window.__n1=CB.length;return 1})()`); const c5 = await js(`__n1-__n0`); ok('metralha dispara em leque', c5 >= 5, { balas: c5 }); await wait(600);
     // avaria e rendição
     await js(`(()=>{NAVAL.forceRend=true;const s=__S;s.hp=Math.round(s.mhp*.2);s.st='fight';s.tgt='P';return 1})()`); await wait(600);
     const c6 = await js(`({rend:!!__S.rend,st:__S.st})`); ok('pirata avariado se rende', c6.rend, c6);
-    await js(`(()=>{const s=__S,a=PS.a+Math.PI/2;s.x=PS.x+Math.cos(a)*70;s.y=PS.y+Math.sin(a)*70;PS.v=0;return 1})()`); await wait(800); await shot('rendido');
+    await js(`(()=>{NS=NS.filter(x=>x===__S);const s=__S,a=PS.a+Math.PI/2;s.x=PS.x+Math.cos(a)*70;s.y=PS.y+Math.sin(a)*70;PS.v=0;return 1})()`); await wait(800); await shot('rendido');
     const nr = await js(`(seaNear()||{}).k`); ok('E perto oferece saquear', nr === 'rend', { k: nr });
     const b0 = await js(`P.berries`); await key('E'); await wait(700);
     const c7 = await js(`({b:P.berries,looted:!!__S.looted,hostil:hostileP(__S)})`); ok('saque dá recompensa e o navio fica pacífico', c7.b > b0 && c7.looted && !c7.hostil, Object.assign({ antes: b0 }, c7));

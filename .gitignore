@@ -3,3 +3,4 @@ dist/
 dist-*/
 Piratemmo-ultimohorizonte/
 *.log
+game/.fonte.json

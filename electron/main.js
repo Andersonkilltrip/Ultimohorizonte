@@ -14,6 +14,8 @@ const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'janela.json');
 const RES = [[1168, 720], [1280, 720], [1366, 768], [1536, 864], [1600, 900], [1920, 1080], [2560, 1440]];
 
 // app:// com origem fixa: o localStorage do jogo (saves e opÃ§Ãµes) fica sempre no mesmo lugar e sobrevive Ã s atualizaÃ§Ãµes
+// testes automáticos: não pausar o desenho quando a janela fica coberta por outras (oclusão nativa do Windows)
+if (process.env.PM_DIAG) { app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion'); app.commandLine.appendSwitch('disable-renderer-backgrounding'); app.commandLine.appendSwitch('disable-background-timer-throttling'); }
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
 
 // Servidor multiplayer (Colyseus): variÃ¡vel PM_SERVER > %APPDATA%\Pirate MMO\servidor.json {"url":"..."} > "mpServer" do package.json.
