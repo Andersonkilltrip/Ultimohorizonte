@@ -181,6 +181,8 @@ app.whenReady().then(() => {
   if (process.env.PM_DIAG === '1') { require('./diag')(w); return; }
   if (process.env.PM_DIAG === 'mar') { require('./diag_mar')(w); return; }
   if (process.env.PM_DIAG === 'itens') { require('./diag_itens')(w); return; }
+  if (process.env.PM_DIAG === 'velas') { require('./diag_velas')(w); return; }
+  if (process.env.PM_DIAG === 'folk') { require('./diag_folk')(w); return; }
   updater.init(w);
 });
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
