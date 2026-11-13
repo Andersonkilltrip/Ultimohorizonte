@@ -183,6 +183,7 @@ app.whenReady().then(() => {
   if (process.env.PM_DIAG === 'itens') { require('./diag_itens')(w); return; }
   if (process.env.PM_DIAG === 'velas') { require('./diag_velas')(w); return; }
   if (process.env.PM_DIAG === 'folk') { require('./diag_folk')(w); return; }
+  if (process.env.PM_DIAG === 'hostil') { require('./diag_hostil')(w); return; }
   updater.init(w);
 });
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
