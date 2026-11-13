@@ -186,6 +186,7 @@ app.whenReady().then(() => {
   if (process.env.PM_DIAG === 'hostil') { require('./diag_hostil')(w); return; }
   if (process.env.PM_DIAG === 'casas') { require('./diag_casas')(w); return; }
   if (process.env.PM_DIAG === 'navalnpc') { require('./diag_navalnpc')(w); return; }
+  if (process.env.PM_DIAG === 'js') { require('./diag_js')(w); return; }
   if (process.env.PM_DIAG === 'social') { require('./diag_social')(w); return; }
   updater.init(w);
 });
