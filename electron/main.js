@@ -1,7 +1,7 @@
 'use strict';
 // Pirate MMO — processo principal do Electron.
 // O jogo (game/index.html) é o mesmo HTML independente; aqui só o servimos com segurança e janela de jogo.
-const { app, BrowserWindow, Menu, protocol, net, session, shell, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, protocol, net, session, shell, dialog, ipcMain, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -10,7 +10,8 @@ const updater = require('./updater');
 const GAME_DIR = path.join(__dirname, '..', 'game');
 const SELFTEST = process.argv.includes('--selftest');
 const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'janela.json');
-const RES = [[1280, 720], [1600, 900], [1920, 1080], [2560, 1440]];
+// resoluções de janela (área do jogo); só aparecem as que cabem na área útil do monitor
+const RES = [[1168, 720], [1280, 720], [1366, 768], [1536, 864], [1600, 900], [1920, 1080], [2560, 1440]];
 
 // app:// com origem fixa: o localStorage do jogo (saves e opções) fica sempre no mesmo lugar e sobrevive às atualizações
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
@@ -23,8 +24,32 @@ function mpServer() {
   try { return String(require('../package.json').mpServer || '').trim(); } catch { return ''; }
 }
 
-function loadSettings() { try { return JSON.parse(fs.readFileSync(SETTINGS_FILE(), 'utf8')); } catch { return { w: 1600, h: 900, full: false }; } }
-function saveSettings(s) { try { fs.mkdirSync(path.dirname(SETTINGS_FILE()), { recursive: true }); fs.writeFileSync(SETTINGS_FILE(), JSON.stringify(s)); } catch {} }
+// janela.json v2: { v:2, w, h (área do jogo), mode: 'janela'|'maximizada'|'tela' }
+function loadSettings() { try { const j = JSON.parse(fs.readFileSync(SETTINGS_FILE(), 'utf8')); if (j && j.v === 2) return j; } catch {} return null; }
+function saveSettings(s) { try { fs.mkdirSync(path.dirname(SETTINGS_FILE()), { recursive: true }); fs.writeFileSync(SETTINGS_FILE(), JSON.stringify(Object.assign({ v: 2 }, s))); } catch {} }
+// tamanho inicial: ~88% da área útil do monitor, nunca menor que 1280×720 quando o monitor comporta
+function defaultSize() {
+  const wa = screen.getPrimaryDisplay().workArea;
+  let w = Math.round(wa.width * 0.88), h = Math.round(wa.height * 0.88);
+  if (wa.width >= 1320 && wa.height >= 780) { w = Math.max(w, 1280); h = Math.max(h, 720); }
+  return { w: Math.min(w, wa.width - 40), h: Math.min(h, wa.height - 60) };
+}
+function fitsRes() { const wa = screen.getDisplayMatching(win ? win.getBounds() : screen.getPrimaryDisplay().bounds).workArea; return RES.filter(([w, h]) => w <= wa.width && h + 40 <= wa.height); }
+function curMode() { return !win ? 'janela' : win.isFullScreen() ? 'tela' : win.isMaximized() ? 'maximizada' : 'janela'; }
+function remember() { if (!win) return; const m = curMode(), s = loadSettings() || {}; s.mode = m; if (m === 'janela') { const [w, h] = win.getContentSize(); s.w = w; s.h = h; } saveSettings(s); }
+function notifyMode() { if (win && !win.isDestroyed()) win.webContents.send('pm:win:mode', curMode()); remember(); }
+function setMode(m) {
+  if (!win) return;
+  if (m === 'tela') { if (!win.isFullScreen()) win.setFullScreen(true); }
+  else if (m === 'maximizada') { if (win.isFullScreen()) { win.once('leave-full-screen', () => win.maximize()); win.setFullScreen(false); } else win.maximize(); }
+  else { if (win.isFullScreen()) win.setFullScreen(false); if (win.isMaximized()) win.unmaximize(); }
+}
+function setRes(w, h) {
+  if (!win) return;
+  const go = () => { if (win.isMaximized()) win.unmaximize(); win.setContentSize(w, h); win.center(); remember(); };
+  if (win.isFullScreen()) { win.once('leave-full-screen', () => setTimeout(go, 50)); win.setFullScreen(false); } else go();
+}
+function toggleFull() { setMode(win && win.isFullScreen() ? 'janela' : 'tela'); }
 
 if (!app.requestSingleInstanceLock()) app.quit();
 let win = null;
@@ -76,6 +101,8 @@ function buildMenu() {
   const tpl = [
     { label: 'Jogo', submenu: [
       { label: 'Tela cheia', accelerator: 'F11', click: toggleFull },
+      { label: 'Maximizar', click: () => setMode('maximizada') },
+      { label: 'Janela', click: () => setMode('janela') },
       { label: 'Resolução', submenu: RES.map(([w, h]) => ({ label: `${w} × ${h}`, click: () => setRes(w, h) })) },
       { type: 'separator' },
       { label: 'Recarregar o jogo', accelerator: 'Ctrl+R', click: () => win && win.reload() },
@@ -93,9 +120,10 @@ function buildMenu() {
 }
 
 function createWindow() {
-  const s = loadSettings();
+  const s = loadSettings() || Object.assign({ mode: 'janela' }, defaultSize());
+  const wa = screen.getPrimaryDisplay().workArea;
   win = new BrowserWindow({
-    title: 'Pirate MMO', width: s.w || 1600, height: s.h || 900, useContentSize: true, minWidth: 960, minHeight: 600,
+    title: 'Pirate MMO', width: Math.min(s.w, wa.width), height: Math.min(s.h, wa.height - 30), useContentSize: true, minWidth: 960, minHeight: 600, center: true,
     backgroundColor: '#0b0f18', show: false, autoHideMenuBar: true,
     icon: path.join(__dirname, '..', 'build', 'icon.ico'),
     webPreferences: {
@@ -105,19 +133,23 @@ function createWindow() {
       spellcheck: false, backgroundThrottling: false
     }
   });
-  if (s.full) win.setFullScreen(true);
-  win.once('ready-to-show', () => { if (!SELFTEST) win.show(); });
+  win.once('ready-to-show', () => { if (SELFTEST) return; if (s.mode === 'maximizada') win.maximize(); win.show(); if (s.mode === 'tela') win.setFullScreen(true); });
   // nada de navegar para fora do jogo nem abrir janelas novas; links http(s) abrem no navegador
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e, url) => { if (!url.startsWith('app://')) e.preventDefault(); });
-  win.on('enter-full-screen', () => { const t = loadSettings(); t.full = true; saveSettings(t); });
-  win.on('leave-full-screen', () => { const t = loadSettings(); t.full = false; saveSettings(t); });
+  for (const ev of ['enter-full-screen', 'leave-full-screen', 'maximize', 'unmaximize']) win.on(ev, notifyMode);
+  let rt = 0; win.on('resize', () => { clearTimeout(rt); rt = setTimeout(remember, 400); });
   win.loadURL('app://game/index.html');
   return win;
 }
 
 ipcMain.handle('pm:version', () => app.getVersion());
 ipcMain.on('pm:install-now', () => updater.installNow());
+// janela nativa pedida pelo jogo (Configurações > Exibição)
+ipcMain.handle('pm:win:get', () => curMode());
+ipcMain.handle('pm:win:list-res', () => fitsRes());
+ipcMain.on('pm:win:set-mode', (_e, m) => { if (['janela', 'maximizada', 'tela'].includes(m)) setMode(m); });
+ipcMain.on('pm:win:set-res', (_e, w, h) => { if (RES.some(([a, b]) => a === w && b === h)) setRes(w, h); });
 
 // Teste automático: abre o jogo escondido, espera carregar e grava o resultado
 async function selfTest(w) {
@@ -146,6 +178,7 @@ app.whenReady().then(() => {
   registerAppProtocol(); hardenSession(); buildMenu();
   const w = createWindow();
   if (SELFTEST) { selfTest(w); return; }
+  if (process.env.PM_DIAG === '1') { require('./diag')(w); return; }
   updater.init(w);
 });
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });

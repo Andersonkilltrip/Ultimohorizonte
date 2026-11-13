@@ -8,6 +8,17 @@ const arg = process.argv.find(a => a.startsWith('--pm-server='));
 const MP_SERVER = arg ? decodeURIComponent(arg.slice('--pm-server='.length)) : '';
 if (MP_SERVER) contextBridge.exposeInMainWorld('MP_SERVER', MP_SERVER);
 
+// Janela nativa (modos e resolução) para Configurações > Exibição. Só estas quatro operações, nada além.
+const modeCbs = [];
+ipcRenderer.on('pm:win:mode', (_e, m) => { for (const f of modeCbs) try { f(m); } catch (e) {} });
+contextBridge.exposeInMainWorld('PMNative', {
+  setMode: m => ipcRenderer.send('pm:win:set-mode', String(m)),
+  getMode: () => ipcRenderer.invoke('pm:win:get'),
+  listRes: () => ipcRenderer.invoke('pm:win:list-res'),
+  setRes: (w, h) => ipcRenderer.send('pm:win:set-res', w | 0, h | 0),
+  onMode: f => { if (typeof f === 'function') modeCbs.push(f); }
+});
+
 function ui() {
   if (document.getElementById('pmVersion')) return;
   const st = document.createElement('style');
