@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 // Pirate MMO â€” processo principal do Electron.
 // O jogo (game/index.html) Ã© o mesmo HTML independente; aqui sÃ³ o servimos com seguranÃ§a e janela de jogo.
 const { app, BrowserWindow, Menu, protocol, net, session, shell, dialog, ipcMain, screen } = require('electron');
@@ -184,6 +184,8 @@ app.whenReady().then(() => {
   if (process.env.PM_DIAG === 'velas') { require('./diag_velas')(w); return; }
   if (process.env.PM_DIAG === 'folk') { require('./diag_folk')(w); return; }
   if (process.env.PM_DIAG === 'hostil') { require('./diag_hostil')(w); return; }
+  if (process.env.PM_DIAG === 'casas') { require('./diag_casas')(w); return; }
+  if (process.env.PM_DIAG === 'navalnpc') { require('./diag_navalnpc')(w); return; }
   if (process.env.PM_DIAG === 'social') { require('./diag_social')(w); return; }
   updater.init(w);
 });
