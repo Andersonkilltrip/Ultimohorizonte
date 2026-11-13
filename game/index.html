@@ -7214,15 +7214,15 @@ The format should be roomId:reconnectionToken`);return yield this.createMatchMak
 
 </script>
 <script id="mpColyseus">
-// ===== MULTIPLAYER (Colyseus 0.18) — ilha compartilhada =====
+// ===== MULTIPLAYER (Colyseus 0.18) — ilha e mar compartilhados =====
 // Substitui o cliente Socket.IO antigo (um só sistema de sincronização).
 // Liga só quando há servidor: ?server=URL, window.MP_SERVER (o app Electron define) ou localStorage "uh_server".
 // Sem servidor o jogo segue 100% single-player. Nada de gráfico, HUD, navio ou sistema existente foi alterado:
-// o outro jogador é desenhado pela mesma função do herói (chr/hero2Draw), com a aparência dele.
+// o outro jogador é desenhado pelas mesmas funções do jogo (chr/hero2Draw em terra, drawShip no mar).
 (function(){
 'use strict';
 const C=window.Colyseus;
-const NET=window.NET={on:false,room:null,url:'',status:'off',island:null,others:new Map(),err:'',sent:0,corr:0};
+const NET=window.NET={on:false,room:null,url:'',status:'off',key:null,kind:null,others:new Map(),ships:new Map(),err:'',sent:0,corr:0,seed:''};
 window.MPEN=window.MPEN||{mirror(){}}; // compatibilidade: o laço de inimigos chama MPEN.mirror só para inimigos espelhados (não há mais)
 if(!C){NET.err='SDK do Colyseus ausente';return}
 const qs=new URLSearchParams(location.search);
@@ -7231,19 +7231,40 @@ const SS={get:k=>{try{return sessionStorage.getItem(k)||''}catch(e){return''}},s
 NET.url=String(qs.get('server')||window.MP_SERVER||LS('uh_server')||'').trim().replace(/\/+$/,'');
 if(!NET.url)return;
 NET.on=true;
+// Mundo oficial do online (mesma seed para todos = mesmas ilhas no mesmo lugar). O servidor confirma em /health.
+NET.seed=String(window.MP_SEED||'HORIZONTE-1');
+fetch(NET.url+'/health',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&j.seed)NET.seed=String(j.seed)}).catch(()=>{});
 const RT='uh_rt';                 // token de reconexão (sobrevive a recarregar a página/app)
-const SEND_MS=66,BEAT_MS=1000,INTERP_MS=110;
-let client=null,joining=false,retryAt=0,lastKey='',lastBeat=0,lastLook='';
+const INTERP_MS=110;
+let client=null,joining=false,retryAt=0,lastKey='',lastBeat=0,lastLook='',lastSent=null;
+
+// ---------- mundo compartilhado: personagens online usam a seed oficial ----------
+const oStart=start;
+start=function(o2,fromSave){const o=o2||mk();if(!fromSave&&NET.on)o.seed=NET.seed;return oStart(o,fromSave)};
+const oLoad=loadFrom;
+loadFrom=function(d){
+  if(d&&NET.on&&d.seed!==NET.seed){
+    // personagem de outro mundo: mantém tudo (nível, itens, navios), mas passa a viver no mundo online,
+    // começando no porto de Foosha (as ilhas descobertas eram de outro mapa)
+    d=JSON.parse(JSON.stringify(d));d.seed=NET.seed;d.loc={m:'land',map:'foosha',x:728,y:416};
+    d.DISC=[0];d.EXPL=['0,0'];d.TAKEN={};d.LASTPORT=0;
+    setTimeout(()=>note('Personagem trazido para o mundo online (começa em Foosha).',7000),1500);
+  }
+  return oLoad(d)};
 
 // ---------- estado local ----------
 const isOn=()=>typeof started!='undefined'&&started&&typeof P!='undefined'&&P;
-function wantIsland(){
+function want(){
   if(!isOn())return null;
-  if(typeof MODE!='undefined'&&MODE==='sea')return null;
+  if(typeof MODE!='undefined'&&MODE==='sea'){
+    if(typeof PS=='undefined'||!PS||typeof WSEED=='undefined')return null;
+    return {kind:'mar',key:'mar:'+WSEED,opts:{seed:String(WSEED)}};
+  }
   if(typeof INT!='undefined'&&INT)return null;
-  return (typeof CUR=='string'&&CUR==='foosha')?'foosha':null;   // fase 1: só a ilha inicial é compartilhada
-}
+  if(typeof CUR=='string'&&CUR==='foosha')return {kind:'ilha',key:'ilha:foosha',opts:{island:'foosha'}};   // só Foosha por enquanto
+  return null}
 function look(){return{name:String(P.name||'Pirata').slice(0,20),sid:P.sid==13?13:11,rh:P.rh||'',rs:P.rs||'',ro:P.ro||'',rp:P.rp||'',st:P.style|0,lv:P.lv|0||1}}
+function shipLook(){return{name:String(P.name||'Pirata').slice(0,20),nm:String(PS.nm||'').slice(0,24),t:PS.id|0,hc:typeof PS.hc=='string'?PS.hc:'',sc:typeof PS.sc=='string'?PS.sc:'',f:PS.flag|0}}
 function animK(a){
   try{
     if(a==='atk')return Math.max(0,Math.min(1,1-P.atk/(P.ad||1)));
@@ -7254,65 +7275,91 @@ function animK(a){
   return 0}
 
 // ---------- conexão ----------
-async function join(id){
+async function join(w){
   joining=true;NET.status='conectando';NET.err='';
   try{
     client=client||new C.Client(NET.url);
-    let room=null;const rt=SS.get(RT);
-    if(rt){try{room=await client.reconnect(rt)}catch(e){room=null;SS.set(RT,'')}
-      if(room&&room.state&&room.state.island&&room.state.island!==id){try{room.leave(true)}catch(e){}room=null}}
-    if(!room)room=await client.joinOrCreate('ilha',Object.assign({island:id,x:P.x,y:P.y,d:P.dir|0},look()));
-    bind(room,id);
+    let room=null;const rt=SS.get(RT),rk=SS.get(RT+'k');
+    if(rt&&rk===w.key){try{room=await client.reconnect(rt)}catch(e){room=null}}
+    SS.set(RT,'');
+    if(!room){
+      const o=w.kind==='mar'
+        ?Object.assign({},w.opts,shipLook(),{x:PS.x,y:PS.y,a:PS.a,hp:PS.hp|0,mhp:PS.mhp|0})
+        :Object.assign({},w.opts,{x:P.x,y:P.y,d:P.dir|0},look());
+      room=await client.joinOrCreate(w.kind,o);
+    }
+    if(want()&&want().key===w.key)bind(room,w);else{try{room.leave(true)}catch(e){}}
   }catch(e){NET.status='erro';NET.err=String(e&&e.message||e);retryAt=performance.now()+5000;console.warn('[online]',NET.err)}
   joining=false}
 
-function bind(room,id){
-  NET.room=room;NET.island=id;NET.status='online';NET.others.clear();lastKey='';lastLook='';
-  SS.set(RT,room.reconnectionToken);
-  const cb=C.Callbacks.get(room);
-  cb.onAdd('players',(p,sid)=>{
+function track(cb,col,store,room,label){
+  cb.onAdd(col,(p,sid)=>{
     if(sid===room.sessionId)return;
-    const r={sid,p,buf:[],P:null};NET.others.set(sid,r);
-    const push=()=>{r.buf.push({t:performance.now(),x:p.x,y:p.y,d:p.d,a:p.a,k:p.k});if(r.buf.length>24)r.buf.shift()};
+    const r={sid,p,buf:[],P:null};store.set(sid,r);
+    const push=()=>{r.buf.push({t:performance.now(),x:p.x,y:p.y,d:p.d,a:p.a,k:p.k,v:p.v});if(r.buf.length>24)r.buf.shift()};
     cb.onChange(p,push);push();
-    note((p.name||'Jogador')+' chegou à ilha.');
+    note((p.name||'Jogador')+label[0]);
   });
-  cb.onRemove('players',(p,sid)=>{if(NET.others.delete(sid))note((p.name||'Jogador')+' saiu da ilha.')});
-  room.onMessage('corr',m=>{NET.corr++;if(!isOn())return;if(Math.hypot(P.x-m.x,P.y-m.y)>2){P.x=m.x;P.y=m.y;P.svx=0;P.svy=0}});
-  room.onDrop(()=>{NET.status='reconectando'});
-  room.onReconnect(()=>{NET.status='online';SS.set(RT,room.reconnectionToken);lastKey='';lastLook=''});
-  room.onLeave(()=>{if(NET.room===room){NET.room=null;NET.island=null;NET.others.clear();NET.status='off';SS.set(RT,'')}});
-  room.onError((code,msg)=>{NET.err=code+' '+(msg||'')});
+  cb.onRemove(col,(p,sid)=>{if(store.delete(sid))note((p.name||'Jogador')+label[1])});
 }
 
-function leave(){const r=NET.room;NET.room=null;NET.island=null;NET.others.clear();NET.status='off';SS.set(RT,'');if(r)try{r.leave(true)}catch(e){}}
+function bind(room,w){
+  NET.room=room;NET.key=w.key;NET.kind=w.kind;NET.status='online';NET.others.clear();NET.ships.clear();lastKey='';lastLook='';lastSent=null;
+  SS.set(RT,room.reconnectionToken);SS.set(RT+'k',w.key);
+  const cb=C.Callbacks.get(room);
+  if(w.kind==='mar')track(cb,'ships',NET.ships,room,[' navega por perto.',' saiu do mar.']);
+  else track(cb,'players',NET.others,room,[' chegou à ilha.',' saiu da ilha.']);
+  room.onMessage('corr',m=>{NET.corr++;if(!isOn())return;
+    if(NET.kind==='mar'){if(typeof PS!='undefined'&&PS&&Math.hypot(PS.x-m.x,PS.y-m.y)>2){PS.x=m.x;PS.y=m.y;PS.v=0}}
+    else if(Math.hypot(P.x-m.x,P.y-m.y)>2){P.x=m.x;P.y=m.y;P.svx=0;P.svy=0}
+    lastSent=null});
+  room.onDrop(()=>{NET.status='reconectando'});
+  room.onReconnect(()=>{NET.status='online';SS.set(RT,room.reconnectionToken);lastKey='';lastLook=''});
+  room.onLeave(()=>{if(NET.room===room)clearRoom()});
+  room.onError((code,msg)=>{NET.err=code+' '+(msg||'')});
+}
+function clearRoom(){NET.room=null;NET.key=null;NET.kind=null;NET.others.clear();NET.ships.clear();NET.status='off';SS.set(RT,'');SS.set(RT+'k','')}
+function leave(){const r=NET.room;clearRoom();if(r)try{r.leave(true)}catch(e){}}
 
-// entra/sai da sala conforme o mapa atual
+// entra/sai da sala conforme o lugar: Foosha (a pé) ou o mar
 setInterval(()=>{
-  const w=wantIsland();
-  if(NET.room&&w!==NET.island){leave();return}
+  const w=want();
+  if(NET.room&&(!w||w.key!==NET.key)){leave();return}
   if(w&&!NET.room&&!joining&&performance.now()>=retryAt)join(w);
 },400);
 
-// ---------- envio (só quando algo muda, ~15/s; 1/s de batimento) ----------
+// ---------- envio (só quando algo muda; 1/s de batimento) ----------
 setInterval(()=>{
-  const room=NET.room;if(!room||!isOn()||wantIsland()!==NET.island||NET.status!=='online')return;
+  const room=NET.room;if(!room||!isOn()||NET.status!=='online')return;const w=want();if(!w||w.key!==NET.key)return;
+  const now=performance.now();
+  if(NET.kind==='mar'){
+    // salto grande (porto, naufrágio, viagem rápida): é teletransporte do próprio jogo → entra de novo na sala
+    if(lastSent&&Math.hypot(PS.x-lastSent.x,PS.y-lastSent.y)>320){lastSent=null;leave();return}
+    const m={x:Math.round(PS.x*10)/10,y:Math.round(PS.y*10)/10,a:Math.round(PS.a*100)/100,v:Math.round(PS.v||0),hp:PS.hp|0,mhp:PS.mhp|0};
+    const key=m.x+','+m.y+','+m.a+','+m.v+','+m.hp;
+    if(key!==lastKey||now-lastBeat>1000){room.send('nav',m);lastKey=key;lastBeat=now;lastSent={x:PS.x,y:PS.y};NET.sent++}
+    const lk=JSON.stringify(shipLook());if(lk!==lastLook){if(lastLook)room.send('ship',JSON.parse(lk));lastLook=lk}
+    return}
+  if(lastSent&&Math.hypot(P.x-lastSent.x,P.y-lastSent.y)>200){lastSent=null;leave();return}
   const a=String(P.as||'idle'),k=animK(a);
   const m={x:Math.round(P.x*10)/10,y:Math.round(P.y*10)/10,d:(P.dir|0)&3,a,k:Math.round(k*20)/20,st:P.style|0,ck:P.ck|0};
-  const key=m.x+','+m.y+','+m.d+','+m.a+','+m.k,now=performance.now();
-  if(key!==lastKey||now-lastBeat>BEAT_MS){room.send('mov',m);lastKey=key;lastBeat=now;NET.sent++}
+  const key=m.x+','+m.y+','+m.d+','+m.a+','+m.k;
+  if(key!==lastKey||now-lastBeat>1000){room.send('mov',m);lastKey=key;lastBeat=now;lastSent={x:P.x,y:P.y};NET.sent++}
   const lk=JSON.stringify(look());if(lk!==lastLook){if(lastLook)room.send('look',JSON.parse(lk));lastLook=lk}
-},SEND_MS);
+},66);
 
 // ---------- interpolação (desenha ~110 ms no passado, entre dois estados recebidos) ----------
-function sample(r,now){
+const lerpA=(a,b,f)=>a+Math.atan2(Math.sin(b-a),Math.cos(b-a))*f;
+function sample(r,now,ang){
   const b=r.buf;if(!b.length)return null;const tt=now-INTERP_MS;
   if(tt<=b[0].t)return b[0];
   for(let i=b.length-1;i>0;i--){const A=b[i-1],B=b[i];if(tt>=A.t){if(tt>=B.t)return B;const f=(tt-A.t)/Math.max(1,B.t-A.t);
-    return{x:A.x+(B.x-A.x)*f,y:A.y+(B.y-A.y)*f,d:B.d,a:B.a,k:A.k+(B.k-A.k)*f}}}
+    return{x:A.x+(B.x-A.x)*f,y:A.y+(B.y-A.y)*f,d:B.d,a:ang?lerpA(A.a,B.a,f):B.a,k:(A.k||0)+((B.k||0)-(A.k||0))*f,v:B.v}}}
   return b[b.length-1]}
+// no mar o ângulo vem em "a"; o buffer guarda p.a, que no navio é o ângulo
+const inView=(x,y,mx,my)=>typeof CAMX!='number'||!(x<CAMX-mx||x>CAMX+W+mx||y<CAMY-my||y>CAMY+H+my);
 
-// "P" de um jogador remoto: os campos que o desenho do herói lê (hero2Draw/h2State/recolor)
+// ---------- desenho em terra: o "P" de um jogador remoto com os campos que o desenho do herói lê ----------
 function proxyOf(r,s){
   const p=r.p,q=r.P||(r.P={});
   q.isRemote=1;q.name=p.name;q.sid=p.sid==13?13:11;q.rh=p.rh;q.rs=p.rs;q.ro=p.ro;q.rp=p.rp;q.lv=p.lv;
@@ -7320,7 +7367,6 @@ function proxyOf(r,s){
   q.ad=1;q.atk=s.a==='atk'?1-s.k:0;q.cd0=1;q.cast=s.a==='cast'?1-s.k:0;q.hit=s.a==='hurt'?s.k*.25:0;q.at=s.a==='ko'?s.k:0;
   q.eatAt=-99;q.fome=80;q.sight=0;q.hp=1;q.mhp=1;q.doll=null;q.cd=[0,0,0,0,0,0];
   return q}
-
 function drawRemote(r,s){
   const q=proxyOf(r,s),mv=s.a==='walk'||s.a==='run'||s.a==='dash',al=r.p.on===false?.45:1;
   const me=P;P=q;
@@ -7330,20 +7376,32 @@ function drawRemote(r,s){
   try{txt(r.p.name+(r.p.on===false?' (reconectando)':''),s.x,s.y-50,r.p.on===false?'#b8b8b8':'#ffffff',6,'center')}catch(e){}
 }
 {const o=lifeDraw;lifeDraw=function(L,V){o(L,V);
-  if(!NET.room||wantIsland()!==NET.island)return;const now=performance.now();
-  for(const r of NET.others.values()){const s=sample(r,now);if(!s)continue;
-    if(typeof CAMX=='number'&&(s.x<CAMX-80||s.x>CAMX+W+80||s.y<CAMY-90||s.y>CAMY+H+90))continue;
-    L.push([s.y,()=>drawRemote(r,s)])}}}
+  if(!NET.room||NET.kind!=='ilha')return;const w=want();if(!w||w.key!==NET.key)return;const now=performance.now();
+  for(const r of NET.others.values()){const s=sample(r,now,false);if(!s||!inView(s.x,s.y,80,90))continue;L.push([s.y,()=>drawRemote(r,s)])}}}
+
+// ---------- desenho no mar: o navio do outro jogador pela mesma função drawShip ----------
+function drawRemoteShip(r,s){
+  const p=r.p,S=r.S||(r.S={turn:0,up:{},al:1});
+  S.id=p.t;S.hc=p.hc||null;S.sc=p.sc||null;S.flag=p.f;S.nm=p.nm;S.a=s.a;S.v=s.v||0;S.ph=(r.sid.charCodeAt(0)%7)*.7;
+  const bob=Math.sin(tm*2+S.ph)*1.2;
+  try{c.save();if(p.on===false)c.globalAlpha=.5;drawShip(c,S,s.x,s.y+bob,tm)}catch(e){NET.err='navio: '+e.message}finally{c.restore()}
+  try{txt(p.name+(p.nm?' · '+p.nm:'')+(p.on===false?' (reconectando)':''),s.x,s.y-58,p.on===false?'#b8b8b8':'#ffffff',6,'center')}catch(e){}
+}
+{const o=hdSeaIslandVista;hdSeaIslandVista=function(chs,L,V){o(chs,L,V);
+  if(!NET.room||NET.kind!=='mar'||typeof MODE=='undefined'||MODE!=='sea')return;const now=performance.now();
+  // no mar a câmera é a do navio (CAMX/CAMY são da terra): quem decide o que está na tela é V()
+  for(const r of NET.ships.values()){const s=sample(r,now,true);if(!s)continue;if(V&&!V(s.x,s.y,200))continue;
+    L.push([s.y,()=>drawRemoteShip(r,s)])}}}
 
 // ---------- aviso discreto de conexão (fora do HUD do jogo) ----------
 const chip=document.createElement('div');chip.id='netChip';
 chip.style.cssText='position:fixed;left:50%;top:6px;transform:translateX(-50%);z-index:9000;font:11px system-ui,sans-serif;color:#f3e6c4;background:rgba(14,10,6,.72);border:1px solid rgba(201,162,74,.6);border-radius:10px;padding:2px 9px;pointer-events:none;display:none';
 document.body.appendChild(chip);
-let noteT=0,noteS='';function note(s){noteS=s;noteT=performance.now()+4000}
+let noteT=0,noteS='';function note(s,ms){noteS=s;noteT=performance.now()+(ms||4000)}
 setInterval(()=>{
   if(!isOn()){chip.style.display='none';return}
-  const n=NET.others.size+1,w=wantIsland();
-  let s=NET.status==='online'?'● Online · '+n+(n==1?' jogador':' jogadores'):NET.status==='reconectando'?'◌ Reconectando…':NET.status==='conectando'?'◌ Conectando…':NET.status==='erro'?'○ Servidor indisponível':(w?'○ Offline':'');
+  const w=want(),n=(NET.kind==='mar'?NET.ships.size:NET.others.size)+1,lugar=NET.kind==='mar'?' no mar':'';
+  let s=NET.status==='online'?'● Online · '+n+(n==1?' jogador':' jogadores')+lugar:NET.status==='reconectando'?'◌ Reconectando…':NET.status==='conectando'?'◌ Conectando…':NET.status==='erro'?'○ Servidor indisponível':(w?'○ Offline':'');
   if(performance.now()<noteT)s=noteS;
   chip.textContent=s;chip.style.display=s?'block':'none';chip.style.color=NET.status==='online'?'#bff5c8':'#f3e6c4';
 },300);
