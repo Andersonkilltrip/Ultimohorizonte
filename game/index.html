@@ -7493,7 +7493,7 @@ window.uhGainCraft=n=>gain(Math.max(2,Math.round(n*3)),'oficio');
  if(typeof priceOf!='function'||typeof dmgE!='function'||typeof travel!='function')return;
  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
  const BASEF={0:{marinha:55,pirata:35,rev:10},1:{marinha:45,pirata:45,rev:10},2:{marinha:30,pirata:60,rev:10}};
- const novo=()=>({v:1,dia:-1,fac:{},eco:{},rotas:{},ilhas:{},prog:{desc:0,chefes:0,afund:0,crimes:0,trade:0},areas:{},ev:{},est:{luta:0,espada:0,tiro:0,poder:0,enf:0,bala:0,corrente:0,fogo:0,metralha:0},avisos:{},news:[]});
+ const novo=()=>({v:1,dia:-1,fac:{},eco:{},rotas:{},ilhas:{},prog:{desc:0,chefes:0,afund:0,crimes:0,trade:0},areas:{},ev:{},est:{luta:0,espada:0,tiro:0,poder:0,enf:0,bala:0,corrente:0,fogo:0,metralha:0},avisos:{},news:[],gov:{},pol:{}});
  let MV=novo(),G=null,PEND={};const M=window.MUNDO={get mv(){return MV},get global(){return G},pend:()=>PEND};
  // ---------- utilidades ----------
  const regKey=()=>{try{if(MODE=='sea'&&PS)return WORLD.regAtPx(PS.x,PS.y);const o=WORLD.islByLand(CUR=='refugio'?'foosha':CUR)||WORLD.islById(0);return o?o.reg:'east_blue'}catch(e){return'east_blue'}};
@@ -7504,6 +7504,16 @@ window.uhGainCraft=n=>gain(Math.max(2,Math.round(n*3)),'oficio');
  function estado(reg){const f=facOf(reg),m=f.marinha,p=f.pirata;if(Math.abs(m-p)<12&&m>35&&p>35)return'guerra';return m>=p?'marinha':'pirata'}
  const ESTN={guerra:'Guerra aberta',marinha:'Domínio da Marinha',pirata:'Domínio pirata'};
  function gov(id){const o=ilhaOf(id).ordem,e=estado(regFor(id));if(o<25)return'Em revolta';if(e=='pirata'&&o<55)return'Sob bandeira pirata';if(e=='marinha')return'Governo Mundial';return'Conselho local'}
+ const LEIS={'Governo Mundial':{n:'Lei do Porto',d:'contrabando 30% mais caro; crimes abalam mais a ordem',cr:1.5},'Sob bandeira pirata':{n:'Lei do mais forte',d:'armas, pólvora e munição 15% mais baratas; crimes abalam menos a ordem',cr:.5},'Conselho local':{n:'Feira livre',d:'impostos 5% menores',cr:1},'Em revolta':{n:'Toque de recolher',d:'lojas mais caras e bandidos nas ruas',cr:1}};
+ const GN1=['Aurélio','Benedita','Custódio','Doralice','Evaristo','Florinda','Gaspar','Henriqueta','Isidoro','Jacinta','Leopoldo','Matilde','Noel','Olímpia','Plácido','Quitéria','Romualdo','Severina','Tibúrcio','Valquíria'],GN2=['Maré-Alta','Pedra-Funda','Vento-Leste','Sal-Grosso','Âncora','Coral','Farol','Brisa','Recife','Garoupa'];
+ function govNome(id,k){const R=rngFor('gov:'+id+':'+k);return GN1[Math.floor(R()*GN1.length)]+' '+GN2[Math.floor(R()*GN2.length)]}
+ function govOf(id){let g=MV.gov[id];const t=gov(id);if(!g){g=MV.gov[id]={n:govNome(id,0),t,k:0,d:DAY}}return g}
+ function govCheck(){const ids=Object.keys(MV.ilhas).concat([landKey()]).filter((v,i,a)=>a.indexOf(v)==i&&NM[v]&&v!='refugio'&&v!='refv');for(const id of ids){const g=govOf(id),t=gov(id);if(g.t==t)continue;const velho=g.n;g.k++;g.n=govNome(id,g.k);g.t=t;g.d=DAY;const L=LEIS[t];noticia('Em '+nomeIlha(id)+', '+velho+' deixa o poder: '+g.n+' assume ('+t+'). Nova lei: '+L.n+' — '+L.d+'.')}}
+ function polDia(){const ids=Object.keys(MV.ilhas).filter(v=>NM[v]&&v!='refugio'&&v!='refv');if(!ids.length)return;const R=rngFor('pol:'+WSEED+':'+DAY);if(R()>.35)return;const id=ids[Math.floor(R()*ids.length)],I=ilhaOf(id),g=govOf(id),r=R();
+  if(r<.4){MV.pol[id]={k:'acordo',ate:DAY+3};noticia(g.n+' fechou um acordo comercial: impostos 10% menores em '+nomeIlha(id)+' por 3 dias.')}
+  else if(r<.7){I.ordem=clamp(I.ordem+8,0,100);noticia('Festival em '+nomeIlha(id)+'! O povo apoia '+g.n+' (ordem +8).')}
+  else{I.ordem=clamp(I.ordem-8,0,100);noticia('Escândalo em '+nomeIlha(id)+': '+g.n+' é acusado de desviar impostos (ordem -8).')}}
+ M.govOf=govOf;M.LEIS=LEIS;
  function regFor(id){try{const o=WORLD.islByLand(id=='refugio'?'foosha':id);return o?o.reg:'east_blue'}catch(e){return'east_blue'}}
  function nomeIlha(id){return(NM[id]&&NM[id][0])||(id=='refugio'?'Ilha do Refúgio':id)}
  function noticia(t){MV.news.unshift({d:DAY,t});MV.news=MV.news.slice(0,40);if(typeof newsAdd=='function')newsAdd(t)}
@@ -7513,7 +7523,7 @@ window.uhGainCraft=n=>gain(Math.max(2,Math.round(n*3)),'oficio');
    if(a=='marinha'){f.pirata=clamp(f.pirata+w,0,100);f.marinha=clamp(f.marinha-w*.7,0,100)}else if(a=='pirata'){f.marinha=clamp(f.marinha+w,0,100);f.pirata=clamp(f.pirata-w*.7,0,100);ilhaOf(landKey()).ordem=clamp(ilhaOf(landKey()).ordem+.4,0,100)}
    if(k=='afunda')MV.prog.afund++;MV.fac[reg]=f;q('fac',reg+'|'+a+'|'+k,1)}
   else if(k=='buy'||k=='sell'){MV.eco[a]=clamp((MV.eco[a]||0)+(k=='buy'?.015:-.015)*n,-1,1);MV.prog.trade+=n;q('eco',a,k=='buy'?n:-n)}
-  else if(k=='crime'){const id=landKey(),I=ilhaOf(id);I.ordem=clamp(I.ordem-clamp(a/2e6,1,12),0,100);MV.ilhas[id]=I;MV.prog.crimes++;q('ordem',id,-clamp(a/2e6,1,12))}
+  else if(k=='crime'){const id=landKey(),I=ilhaOf(id),lf=(LEIS[gov(id)]||{cr:1}).cr;I.ordem=clamp(I.ordem-clamp(a/2e6,1,12)*lf,0,100);MV.ilhas[id]=I;MV.prog.crimes++;q('ordem',id,-clamp(a/2e6,1,12))}
   else if(k=='chefe'){MV.prog.chefes++;q('prog','chefes',1)}
   else if(k=='desc'){MV.prog.desc++;q('prog','desc',1)}
   else if(k=='rota'){MV.rotas[a]=(MV.rotas[a]||0)+n;q('rota',a,n)}}
@@ -7541,7 +7551,7 @@ window.uhGainCraft=n=>gain(Math.max(2,Math.round(n*3)),'oficio');
  if(typeof dmgShip=='function'){const _d=dmgShip;dmgShip=function(s,d,by){if(s&&by==='P'&&s!==PS)s._byP=1;return _d.apply(this,arguments)}}
  // ---------- comércio ----------
  const _price=priceOf;
- priceOf=function(shop,k,sell){let p=_price.apply(this,arguments);try{const e=ecoOf(k);p*=1+.3*e;if(!sell){const id=landKey(),o=ilhaOf(id).ordem;if(o<40)p*=1+(40-o)/160;const ev=MV.ev[id];if(ev=='feira')p*=.85}p=Math.max(1,Math.round(p))}catch(x){}return p};
+ priceOf=function(shop,k,sell){let p=_price.apply(this,arguments);try{const e=ecoOf(k);p*=1+.3*e;if(!sell){const id=landKey(),o=ilhaOf(id).ordem;if(o<40)p*=1+(40-o)/160;const ev=MV.ev[id];if(ev=='feira')p*=.85;const t=gov(id),it=ITEMS[k]||{};if(t=='Governo Mundial'&&it.ill)p*=1.3;else if(t=='Sob bandeira pirata'&&(it.t=='equip'||/polvora|bala|flecha|municao/.test(k)))p*=.85;else if(t=='Conselho local')p*=.95;const pl=MV.pol[id];if(pl&&pl.k=='acordo'&&DAY<=pl.ate)p*=.9}p=Math.max(1,Math.round(p))}catch(x){}return p};
  document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.target.closest('[data-b],[data-s]');if(!b||!OV||!OV._shop||!OV.contains(b))return;const k=b.dataset.b||b.dataset.s,n=+b.dataset.n||1,buy=!!b.dataset.b,b0=P.berries;
   setTimeout(()=>{if(buy&&P.berries<b0)ev('buy',k,n);else if(!buy&&P.berries>b0)ev('sell',k,n)},0)},true);
  // ---------- política ----------
@@ -7563,53 +7573,77 @@ window.uhGainCraft=n=>gain(Math.max(2,Math.round(n*3)),'oficio');
   {k:'bastiao',n:'Bastião da Marinha',cond:()=>Object.keys(REGS).some(r=>REGS[r].sh&&facOf(r).marinha>=70),kind:['marine'],txt:'A Marinha ergueu um bastião avançado.'},
   {k:'ruinas',n:'Ruínas Esquecidas',cond:()=>((G&&G.prog&&G.prog.desc)||MV.prog.desc)>=12,kind:['islet'],txt:'Exploradores acharam ruínas antigas com tesouros.'},
   {k:'feira',n:'Feira Flutuante',cond:()=>((G&&G.prog&&G.prog.trade)||MV.prog.trade)>=150,kind:['town'],txt:'Mercadores criaram uma feira com preços 15% menores.'}];
- M.AREAS=AREAS;
+ M.AREAS=AREAS;M.areasCheck=()=>areasCheck();
  function areasCheck(){if(!started)return;for(const A of AREAS){if(MV.areas[A.k]||!A.cond())continue;let o=null;try{const base=WORLD.islById(LASTPORT||0)||WORLD.islById(0),bx=base.cx*TS,by=base.cy*TS;for(let r=1;r<=6&&!o;r++){const L=WORLD.near(bx,by,r*CHPX).filter(i=>i.id>=10000&&i.id<1e8&&A.kind.includes(i.kind)&&!MV.ev['isl:'+i.id]);if(L.length)o=L.sort((a,b)=>Math.hypot(a.cx*TS-bx,a.cy*TS-by)-Math.hypot(b.cx*TS-bx,b.cy*TS-by))[0]}}catch(e){}
-   if(!o)continue;MV.areas[A.k]=o.id;MV.ev['isl:'+o.id]=A.k;DISC.add(o.id);if(IS['isl:'+o.id])marca('isl:'+o.id,IS['isl:'+o.id]);if(typeof buildMini=='function'&&MODE=='sea')try{buildMini()}catch(e){}
+   if(!o)continue;MV.areas[A.k]=o.id;MV.ev['isl:'+o.id]=A.k;if(MAPS['isl:'+o.id]&&CUR!='isl:'+o.id)delete MAPS['isl:'+o.id];DISC.add(o.id);if(IS['isl:'+o.id])marca('isl:'+o.id,IS['isl:'+o.id]);if(typeof buildMini=='function'&&MODE=='sea')try{buildMini()}catch(e){}
    const t='Nova área: '+A.n+' em '+(o.name||'ilha')+'. '+A.txt;noticia(t);say('🗺 '+t)}}
  function marca(id,S){const k=MV.ev[id];if(!k||S._mv)return S;S._mv=k;const A=AREAS.find(a=>a.k==k);if(A&&S.name&&!S.name.startsWith(A.n))S.name=A.n+' — '+S.name;
   if(k=='fortaleza'){S.lvl+=2;S.rw=Math.round((S.rw||40)*2)}else if(k=='ruinas'){S.rw=Math.round((S.rw||40)*3)}else if(k=='bastiao'){S.lvl+=1}if(NM[id])NM[id]=[S.name,S.lvl];return S}
  if(typeof islMeta=='function'){const _im=islMeta;islMeta=function(id){const S=_im.apply(this,arguments);try{if(S)marca(id,S)}catch(e){}return S}}
  // ---------- Ilha do Refúgio: terreno isolado para as casas dos jogadores ----------
  const RF={list:[],fo:null,bz0:null,id:'refugio'};M.RF=RF;
- function ensureRF(){if(IS.refugio&&IS.refugio._rf)return;IS.refugio=Object.assign({},IS.jungle||{},{_rf:1,name:'Ilha do Refúgio',lvl:1,seed:424242,bld:[],h1:7,h2:9,boss:'—',npc:'Barqueiro',rw:4,td:.015,rd:.004,bd:.01,ru:0,pools:0,en:['bandit'],intro:['Um refúgio tranquilo e só seu.'],done:''});NM.refugio=['Ilha do Refúgio',1];}
+ function ensureRF(){if(IS.refugio&&IS.refugio._rf)return;IS.refugio=Object.assign({},IS.jungle||{},{_rf:1,name:'Ilha do Refúgio',lvl:1,seed:424242,bld:[],h1:7,h2:9,boss:'—',npc:'Barqueiro Lino',rw:4,td:.015,rd:.004,bd:.01,ru:0,pools:0,en:['bandit'],intro:['Um refúgio tranquilo e só seu.'],done:''});NM.refugio=['Ilha do Refúgio',1];IS.refv=Object.assign({},IS.refugio,{name:'Refúgio visitado'});NM.refv=['Refúgio visitado',1]}
  ensureRF();
  function rfPrep(){// limpa a ilha: sem inimigos, sem chefe, sem baús; zona construível = todo o gramado
   en=[];NPC=[];CH=[];for(const q of ST)for(let y=q[1];y<=q[1]+1;y++)for(let x=q[0];x<=q[0]+1;x++)if(sol[y])sol[y][x]=false;ST=[];for(const q of WL)if(sol[q[1]])sol[q[1]][q[0]]=false;WL=[];DE=DE.filter(d=>{const tira=/^(ru|flag|crate|barrel|pr_)/.test(d[2]);if(tira&&sol[d[1]])sol[d[1]][d[0]]=false;return!tira});
   let x0=1e9,y0=1e9,x1=-1,y1=-1;for(let y=0;y<MH;y++)for(let x=0;x<MW;x++)if(tile[y][x]===0){x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y)}
-  RF.bz={x0:x0+1,y0:y0+1,x1:x1-1,y1:Math.min(y1-1,Math.floor(CAMP.y/T)-4)};const inZ=(x,y)=>x>=RF.bz.x0&&x<=RF.bz.x1&&y>=RF.bz.y0&&y<=RF.bz.y1;
+  const Z={x0:x0+4,y0:y0+3,x1:x1-4,y1:Math.min(y1-1,Math.floor(CAMP.y/T)-4)};if(CUR=='refugio')RF.bz=Z;RF.zv=Z;const inZ=(x,y)=>x>=Z.x0&&x<=Z.x1&&y>=Z.y0&&y<=Z.y1;
   const keep=[];TR=TR.filter(t=>{if(inZ(t[0],t[1])){sol[t[1]][t[0]]=false;return false}return true});RK=RK.filter(t=>{if(inZ(t[0],t[1])){sol[t[1]][t[0]]=false;return false}return true});BU=BU.filter(t=>!inZ(t[0],t[1]));
   for(let y=0;y<MH;y++)for(let x=0;x<MW;x++)if(tile[y][x]===9){tile[y][x]=0;sol[y][x]=false}
-  if(typeof buildBG=='function'){bg=document.createElement('canvas');bg.width=MW*T*HDS;bg.height=MH*T*HDS;buildBG(IS.refugio)}}
- function rfEnter(){if(!RF.fo){RF.fo={list:BST.list,rub:BST.rub};RF.bz0=Object.assign({},BZ)}if(!RF.bz)rfPrep();Object.assign(BZ,RF.bz);BST.rub=[];BST.list=[];
+  {const R=rngFor('refugio:rec');let n=TR.length+RK.length;for(let k=0;k<400&&n<34;k++){const x=1+Math.floor(R()*(MW-2)),y=1+Math.floor(R()*(MH-2));if(inZ(x,y)||tile[y][x]!==0||sol[y][x]||Math.hypot(x*T-CAMP.x,y*T-CAMP.y)<90)continue;if(R()<.62)TR.push([x,y]);else RK.push([x,y]);sol[y][x]=true;n++}}
+  {const sp=IS[CUR].sp;NPC.push({n:'Barqueiro Lino',x:sp[0]+30,y:sp[1]-14,barq:1,L:(IS.jungle&&IS.jungle.nl)||IS[CUR].nl})}
+  if(typeof buildBG=='function'){bg=document.createElement('canvas');bg.width=MW*T*HDS;bg.height=MH*T*HDS;buildBG(IS[CUR])}}
+ const fixa=()=>{try{if(typeof HDInfra!='undefined'&&HDInfra.planned)HDInfra.planned.add(HO)}catch(e){}};
+ function rfEnter(){fixa();if(!RF.fo){RF.fo={list:BST.list,rub:BST.rub};RF.bz0=Object.assign({},BZ)}if(!RF.bz)rfPrep();Object.assign(BZ,RF.bz);BST.rub=[];BST.list=[];
   for(const b of RF.list){if(!bldDef(b.id))continue;if(!HO.some(h=>h[0]==b.x&&h[1]==b.y))bldAdd(b.id,b.x,b.y,b.lv);BST.list.push(b)}RF.list=BST.list}
  function rfLeave(){if(!RF.fo)return;RF.list=BST.list;BST.list=RF.fo.list;BST.rub=RF.fo.rub;Object.assign(BZ,RF.bz0);RF.fo=null}
  M.rfEnter=rfEnter;M.rfLeave=rfLeave;
  const _tr=travel;
- travel=function(id){ensureRF();if(CUR=='refugio')rfLeave();const novoMapa=id=='refugio'&&!MAPS.refugio;const r=_tr.apply(this,arguments);
-  try{if(CUR=='refugio'){if(novoMapa){RF.bz=null;rfPrep();MAPS.refugio=snap()}rfEnter();en=[];say('🏝 Ilha do Refúgio: aperte B para construir sua casa. Só você pode construir aqui.')}
+ travel=function(id){ensureRF();if(CUR=='refugio')rfLeave();const deRefv=CUR=='refv'&&id!='refv';if(id=='refv'&&!RFV)id='refugio';const novoMapa=id=='refugio'&&!MAPS.refugio;const r=_tr.call(this,id);if(deRefv)delete MAPS.refv;
+  try{if(CUR=='refv'){rfPrep();const b0=Object.assign({},BZ);Object.assign(BZ,RF.zv);try{for(const b of RFV.list)if(bldDef(b.id))bldAdd(b.id,b.x,b.y,Math.max(1,Math.min(5,b.lv|0)))}finally{Object.assign(BZ,b0)}fixa();MAPS.refv=snap();en=[];say('🏝 '+IS.refv.name+'. Fale com o Barqueiro Lino no cais para voltar.')}
+   else if(CUR=='refugio'){if(novoMapa){RF.bz=null;rfPrep();MAPS.refugio=snap()}rfEnter();en=[];say('🏝 Ilha do Refúgio: aperte B para construir sua casa. Só você pode construir aqui.')}
    else{const I=ilhaOf(CUR);if(I.ordem<25&&IS[CUR]&&!IS[CUR].hostile&&typeof newEn=='function'){const cx=CAMP.x/T|0,cy=CAMP.y/T|0;for(let k=0;k<4;k++){const x=cx-6+k*4,y=cy-3;if(tile[y]&&tile[y][x]===0&&!sol[y][x])en.push(newEn(['bandit',x,y]))}say('🔥 '+nomeIlha(CUR)+' está em revolta! Bandidos tomaram as ruas.')}}}catch(e){console.error(e)}return r};
- if(typeof enterSea=='function'){const _es=enterSea;enterSea=function(f){if(CUR=='refugio'){rfLeave();f='foosha'}return _es.call(this,f)}}
+ if(typeof enterSea=='function'){const _es=enterSea;enterSea=function(f){if(CUR=='refv'){delete MAPS.refv;f='foosha'}if(CUR=='refugio'){rfLeave();f='foosha'}return _es.call(this,f)}}
  if(typeof goArea=='function'){const _ga=goArea;goArea=function(){if(CUR=='refugio')rfLeave();return _ga.apply(this,arguments)}}
- if(typeof bldToggle=='function'){const _bt=bldToggle;bldToggle=function(){if(CUR=='refugio'&&!BST.on&&MODE=='land'&&!INT){BST.on=1;BST.sel=null;bldAttach();bldRender();return}return _bt.apply(this,arguments)}}
+ if(typeof bldToggle=='function'){const _bt=bldToggle;bldToggle=function(){if(CUR=='refv'&&!BST.on){say('Este Refúgio é de '+(RFV?RFV.u:'outro jogador')+'. Você só constrói no seu.');return}if(CUR=='refugio'&&!BST.on&&MODE=='land'&&!INT){BST.on=1;BST.sel=null;bldAttach();bldRender();return}return _bt.apply(this,arguments)}}
  if(typeof bldNear=='function'){const _bn=bldNear;bldNear=function(bd){if(CUR!='refugio')return _bn.apply(this,arguments);if(INT||BST.on)return null;let r=null;
   for(const b of BST.list){const e=HO.find(h=>h[0]==b.x&&h[1]==b.y);if(!e)continue;const dx=(e[0]+e[2]/2)*T-P.x,dy=(e[1]+e[3])*T-P.y,d=Math.hypot(dx,dy);if(Math.abs(dx)<34&&dy>-10&&dy<36&&d<bd+10){bd=d;r={k:'life',d,o:{x:(e[0]+e[2]/2)*T,y:(e[1]+e[3])*T},l:bldDef(b.id).n+' (Nv '+b.lv+')',f:()=>bldUpMenu(b)}}}return r}}
- // barqueiro: Foosha (cais) <-> Refúgio
- const portoF=()=>[46*T,43*T];
+ // barqueiro: Foosha (cais) <-> Refúgio; visitar o Refúgio de outro jogador (online)
+ const portoF=()=>[46*T,43*T];RF.col={};let RFV=null;
+ const online=()=>!!(window.NET&&NET.url&&window.UHACC&&UHACC.tok);
+ function barqMenu(at){const o=[];if(CUR!='refugio')o.push(['Ir ao meu Refúgio',()=>travel('refugio')]);if(CUR!='foosha')o.push(['Voltar para Foosha',()=>travel('foosha')]);
+  o.push([online()?'Visitar o Refúgio de outro jogador':'Visitar outro jogador (precisa estar online)',()=>{if(online())visitAsk();else say('Entre na sua conta online para visitar o Refúgio de outros jogadores.')}]);o.push(['Fechar',()=>{}]);
+  PMENU={title:'Barqueiro Lino',opts:o,at};menu=1}
+ M.barqMenu=barqMenu;
+ if(typeof talk=='function'){const _tk=talk;talk=function(n){if(n&&n.barq)return barqMenu({x:n.x,y:n.y});return _tk.apply(this,arguments)}}
+ function visitAsk(){openUI(`<div class="ovh"><h1>⛵ Visitar um Refúgio</h1><button class="btn pri" id="ovx">Fechar [Esc]</button></div><div class="box"><p>Nome de usuário do jogador:</p><input id="rfu" maxlength="16" style="font:inherit;padding:6px;width:220px"> <button class="btn pri" id="rfgo">Ir</button><p class="sm" id="rfm"></p></div>`);
+  OV.querySelector('#ovx').onclick=closeUI;const inp=OV.querySelector('#rfu'),m=OV.querySelector('#rfm');setTimeout(()=>inp.focus(),50);
+  const go=async()=>{const u=inp.value.trim().toLowerCase();if(!/^[a-z0-9_]{3,16}$/.test(u)){m.textContent='Usuário inválido.';return}m.textContent='Procurando...';
+   try{const j=await (await fetch(NET.url+'/api/refugio/'+u)).json();if(!j.ok||!j.list||!j.list.length){m.textContent='Esse jogador ainda não construiu nada no Refúgio.';return}closeUI();visitRef(u,j.list)}catch(e){m.textContent='Não foi possível falar com o servidor.'}};
+  OV.querySelector('#rfgo').onclick=go;inp.onkeydown=e=>{e.stopPropagation();if(e.key=='Enter')go()}}
+ function visitRef(u,list){ensureRF();RFV={u,list};IS.refv.name='Refúgio de '+u;NM.refv=[IS.refv.name,1];delete MAPS.refv;travel('refv')}
+ M.visitRef=visitRef;
+ let upT=0,upJ='';
+ function refUp(){if(!online())return;const j=JSON.stringify(RF.list.map(b=>({id:b.id,x:b.x,y:b.y,lv:b.lv})));if(j==upJ||Date.now()-upT<30000)return;upT=Date.now();
+  fetch(NET.url+'/api/refugio',{method:'PUT',headers:{'Content-Type':'application/json',Authorization:'Bearer '+UHACC.tok},body:JSON.stringify({list:JSON.parse(j)})}).then(r=>{if(r.ok)upJ=j}).catch(()=>{})}
+ M.refUp=refUp;
+ const REC={t:{l:'Cortar árvore',g:()=>({madeira:3+Math.floor(rnd()*4),material:rnd()<.5?1:0})},r:{l:'Quebrar pedra',g:()=>({pedra:2+Math.floor(rnd()*3),ferro:rnd()<.3?1:0,material:rnd()<.3?1:0})}};
+ function colNear(bd){if(CUR!='refugio'||BST.on)return null;let r=null;const scan=(L,k)=>{for(const o of L){const x=o[0]*T+8,y=o[1]*T+12,d=Math.hypot(x-P.x,y-P.y),key=k+o[0]+','+o[1];if(d<24&&d<bd&&RF.col[key]!==DAY){bd=d;r={k:'life',d,o:{x,y},l:REC[k].l,f:()=>{RF.col[key]=DAY;const g=REC[k].g();const t=[];for(const q in g)if(g[q]){BST.res[q]=(BST.res[q]||0)+g[q];t.push('+'+g[q]+' '+RN[q].toLowerCase())}fl.push({x,y:y-20,t:1.4,s:t.join(' '),c:'#ffe9a8'});spark(x,y-8,k=='t'?'#8fd06a':'#d8c8a0',14);if(typeof sfx=='function')sfx('f_impact',P.x,P.y,{m:.5,sc:.5})}}}}};scan(TR,'t');scan(RK,'r');return r}
  if(typeof near=='function'){const _nr=near;near=function(){const r=_nr.apply(this,arguments);try{if(MODE!='land'||INT)return r;
-   if(CUR=='foosha'){const [x,y]=portoF(),d=Math.hypot(P.x-(x-34),P.y-y);if(d<30&&(!r||d<(r.d||99)))return{k:'life',d,o:{x:x-34,y},l:'Barco para a Ilha do Refúgio',f:()=>{travel('refugio')}}}
-   if(CUR=='refugio'){const s=IS.refugio.sp,d=Math.hypot(P.x-s[0],P.y-s[1]);if(d<34&&(!r||d<(r.d||99)))return{k:'life',d,o:{x:s[0],y:s[1]},l:'Voltar para Foosha',f:()=>{travel('foosha')}}}}catch(e){}return r}}
+   if(CUR=='foosha'){const [x,y]=portoF(),d=Math.hypot(P.x-(x-34),P.y-y);if(d<30&&(!r||d<(r.d||99)))return{k:'life',d,o:{x:x-34,y},l:'Barqueiro: Ilha do Refúgio',f:()=>barqMenu({x:x-34,y})}}
+   const cn=colNear(r&&r.d!=null?r.d:26);if(cn)return cn}catch(e){}return r}}
+ if(typeof isObj=='function'){const _io=isObj;isObj=function(){if(CUR=='refugio')return'Construa sua casa (B) · colete madeira e pedra (E)';if(CUR=='refv')return'Visitando '+IS.refv.name+' · barqueiro no cais';return _io.apply(this,arguments)}}
  // ---------- salvamento (vai junto do bloco BLD do save) ----------
  if(typeof bldSave=='function'){const _bs=bldSave;bldSave=function(){let d;if(CUR=='refugio'&&RF.fo){const sv={l:BST.list,r:BST.rub};BST.list=RF.fo.list;BST.rub=RF.fo.rub;try{d=_bs()}finally{RF.list=sv.l;BST.list=sv.l;BST.rub=sv.r}}else d=_bs();
-  d.ref=RF.list.map(b=>({id:b.id,x:b.x,y:b.y,lv:b.lv}));d.mv=MV;return d}}
- if(typeof bldLoad=='function'){const _bl=bldLoad;bldLoad=function(d){try{RF.list=(d&&d.ref)||[];RF.fo=null;RF.bz=null;MV=d&&d.mv&&d.mv.v==1?Object.assign(novo(),d.mv):novo()}catch(e){MV=novo()}return _bl.apply(this,arguments)}}
+  d.ref=RF.list.map(b=>({id:b.id,x:b.x,y:b.y,lv:b.lv}));d.refc=RF.col;d.mv=MV;return d}}
+ if(typeof bldLoad=='function'){const _bl=bldLoad;bldLoad=function(d){try{RF.list=(d&&d.ref)||[];RF.col=(d&&d.refc)||{};RF.fo=null;RF.bz=null;MV=d&&d.mv&&d.mv.v==1?Object.assign(novo(),d.mv):novo()}catch(e){MV=novo()}return _bl.apply(this,arguments)}}
  if(typeof start=='function'){const _st=start;start=function(o,fromSave){if(!fromSave){MV=novo();RF.list=[];RF.fo=null;RF.bz=null}return _st.apply(this,arguments)}}
  // ---------- passagem dos dias ----------
  function diario(){if(MV.dia==DAY)return;const n=MV.dia<0?0:Math.min(30,DAY-MV.dia);MV.dia=DAY;for(let i=0;i<n;i++){
   for(const k in MV.eco){MV.eco[k]*=.9;if(Math.abs(MV.eco[k])<.01)delete MV.eco[k]}for(const k in MV.rotas){MV.rotas[k]*=.85;if(MV.rotas[k]<.5)delete MV.rotas[k]}
   for(const id in MV.ilhas){const I=MV.ilhas[id];I.ordem+=(60-I.ordem)*.06}for(const k of ['luta','espada','tiro','poder','enf','bala','corrente','fogo','metralha'])MV.est[k]=Math.round((MV.est[k]||0)*.85)
   for(const r in MV.fac){const f=MV.fac[r],b=BASEF[(REGS[r]&&REGS[r].dg)||0]||BASEF[0];for(const k in b)f[k]+=(b[k]-f[k])*.03}}
-  for(const k in MV.avisos)if(DAY-MV.avisos[k]>7)delete MV.avisos[k]}
+  for(const k in MV.avisos)if(DAY-MV.avisos[k]>7)delete MV.avisos[k];if(n>0)try{polDia()}catch(e){}}
  // ---------- sincronização com o servidor (online) ----------
  let syncT=5,syncing=false;
  async function sync(){if(syncing||!window.NET||!NET.url||!window.UHACC||!UHACC.tok)return;syncing=true;const env=PEND;PEND={};
@@ -7620,15 +7654,37 @@ window.uhGainCraft=n=>gain(Math.max(2,Math.round(n*3)),'oficio');
  M.sync=sync;
  // ---------- laço ----------
  let areaT=3;
- if(typeof update=='function'){const _u=update;update=function(dt){const r=_u.apply(this,arguments);try{if(started){wrapSpecs();diario();navalAdapt();if(MODE=='sea'&&PS)seaTick(dt);areaT-=dt;if(areaT<=0){areaT=5;areasCheck()}syncT-=dt;if(syncT<=0){syncT=45;sync()}}}catch(e){if(!M.err)M.err=String(e&&e.stack||e)}return r}}
+ if(typeof update=='function'){const _u=update;update=function(dt){const r=_u.apply(this,arguments);try{if(started){wrapSpecs();diario();navalAdapt();if(MODE=='sea'&&PS)seaTick(dt);areaT-=dt;if(areaT<=0){areaT=5;areasCheck();govCheck();refUp()}fofocaTick(dt);syncT-=dt;if(syncT<=0){syncT=45;sync()}}}catch(e){if(!M.err)M.err=String(e&&e.stack||e)}return r}}
  // descoberta de ilhas conta para o progresso do mundo
  if(typeof DISC!='undefined'&&DISC.add){const _a=DISC.add.bind(DISC);DISC.add=function(v){const n=!DISC.has(v);const r=_a(v);try{if(n&&started)ev('desc')}catch(e){}return r}}
+ // ---------- moradores comentam o mundo ----------
+ function rumores(curto){const L=[],S=[];const reg=regKey(),e=estado(reg),rn=(REGS[reg]||{}).n||'mar';
+  if(e=='guerra'){L.push('Dizem que há guerra aberta no '+rn+'. Marinha e piratas se atacam no mar!');S.push('Guerra no mar! Cuidado.')}
+  else if(e=='marinha'){L.push('A Marinha manda no '+rn+' agora. Piratas andam sumidos.');S.push('A Marinha domina o mar.')}else{L.push('Os piratas tomaram o '+rn+'. Navegar sozinho está perigoso.');S.push('Piratas por toda parte...')}
+  const ec=Object.keys(Object.assign({},MV.eco,(G&&G.eco)||{})).filter(k=>ITEMS[k]).map(k=>[k,ecoOf(k)]).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1]))[0];
+  if(ec&&Math.abs(ec[1])>=.08){const n=ITEMS[ec[0]].n;if(ec[1]>0){L.push(n+' está caríssimo: todo mundo quer comprar!');S.push(n+' anda caro!')}else{L.push('Sobrou '+n+' no mercado, o preço despencou.');S.push(n+' está barato.')}}
+  const id=landKey();if(NM[id]&&id!='refugio'&&id!='refv'){const g=govOf(id),o=ilhaOf(id).ordem;L.push('Aqui quem manda é '+g.n+' ('+g.t+'). '+(o<40?'A ordem anda péssima, os impostos subiram.':'As coisas andam calmas.'));S.push(o<40?'Impostos altos...':g.n+' governa bem.')}
+  for(const A of AREAS)if(MV.areas[A.k]!=null){const o=WORLD.islById(MV.areas[A.k]);L.push('Ouvi falar de '+A.n+(o?' em '+o.name:'')+'. '+A.txt);S.push('Viu a '+A.n+'?');break}
+  const ap=['luta','espada','tiro','poder'].filter(k=>resist(k)>=.05);if(ap.length){L.push('Os bandidos andam treinando contra quem luta com '+ESTN2[ap[0]]+'.');S.push('Bandidos treinando...')}
+  if(MV.news[0])L.push('Novidade: '+MV.news[0].t);
+  return curto?S:L}
+ M.rumores=rumores;
+ if(typeof citTalk=='function'){const _ct=citTalk;citTalk=function(v){const r=_ct.apply(this,arguments);try{if(menu&&PMENU&&PMENU.opts&&!PMENU.opts.some(o=>o[0]=='Novidades do mundo')){const R=rumores();PMENU.opts.splice(Math.max(0,PMENU.opts.length-1),0,['Novidades do mundo',()=>say2(v.n,R.slice(0,3))])}}catch(e){}return r}}
+ let fofT=8;
+ function fofocaTick(dt){fofT-=dt;if(fofT>0||MODE!='land'||INT||typeof VIL=='undefined'||!VIL||CUR!='foosha')return;fofT=14+Math.random()*10;const S=rumores(true);if(!S.length)return;
+  const v=VIL.filter(v=>!v.hid&&!v.say&&!v.ko&&Math.hypot(v.x-P.x,v.y-P.y)<140)[0];if(v){v.say=S[Math.floor(Math.random()*S.length)];v.sayT=5}}
+ // ---------- lojas: estoque acompanha a procura ----------
+ if(typeof shopFor=='function'){const _sf=shopFor;shopFor=function(id){const sh=_sf.apply(this,arguments);try{if(sh&&sh._mvd!==DAY&&sh.stock){sh._mvd=DAY;for(const row of sh.stock){const e=ecoOf(row[0]);if(e>.15)row[1]=Math.ceil(row[1]*(1+e));else if(e<-.3)row[1]=Math.max(1,Math.floor(row[1]*(1+e*.6)))}
+   if(sh.fac!='contra'){const dem=Object.keys(Object.assign({},MV.eco,(G&&G.eco)||{})).filter(k=>ITEMS[k]&&!ITEMS[k].ill&&ITEMS[k].t!='equip'&&ecoOf(k)>.4&&!sh.stock.some(r=>r[0]==k)).slice(0,2);for(const k of dem)sh.stock.push([k,3])}}}catch(e){}return sh}}
+ // ---------- Jornal também no diário (I) ----------
+ function addJBtn(){try{const d=OV&&OV.querySelector('.mnav .dot[data-t], .dot[data-t]');if(!d||OV.querySelector('#mvJornal'))return;const b=document.createElement('button');b.className=d.className.replace(/\bon\b/,'').replace(/t-\w+/,'t-world');b.id='mvJornal';b.type='button';b.innerHTML=d.querySelector('i')?'<i>📰</i>Jornal (N)':'Jornal (N)';b.addEventListener('click',e=>{e.stopPropagation();e.preventDefault();closeUI();setTimeout(jornal,0)},true);d.parentNode.appendChild(b)}catch(e){}}
+ if(typeof OV!='undefined'&&OV&&window.MutationObserver)new MutationObserver(addJBtn).observe(OV,{childList:true,subtree:true});
  // ---------- Jornal do Mundo (tecla N) ----------
  const esc2=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
  function barra(f){const t=f.marinha+f.pirata+f.rev||1;return`<div style="display:flex;height:9px;border-radius:5px;overflow:hidden;margin:3px 0 6px"><i style="width:${f.marinha/t*100}%;background:#4f8fe0"></i><i style="width:${f.pirata/t*100}%;background:#d24a3a"></i><i style="width:${f.rev/t*100}%;background:#e0b040"></i></div>`}
  function jornal(){if(typeof openUI!='function')return;diario();
   const regs=Object.keys(REGS).filter(r=>REGS[r].sh);const rr=regs.map(r=>{const f=facOf(r),e=estado(r);return`<div><b>${esc2(REGS[r].n)}</b> <small style="color:${e=='guerra'?'#ffb35a':e=='marinha'?'#8fc0ff':'#ff8f80'}">${ESTN[e]}</small>${barra(f)}</div>`}).join('');
-  const ilhas=Object.keys(Object.assign({},MV.ilhas,(G&&G.ilhas)||{})).concat([CUR]).filter((v,i,a)=>a.indexOf(v)==i&&NM[v]).slice(0,10).map(id=>{const o=Math.round(ilhaOf(id).ordem);return`<li>${esc2(nomeIlha(id))}: <b>${gov(id)}</b> · ordem ${o}${o<40?' · impostos +'+Math.round((40-o)/1.6)+'%':''}</li>`}).join('');
+  const ilhas=Object.keys(Object.assign({},MV.ilhas,(G&&G.ilhas)||{})).concat([CUR]).filter((v,i,a)=>a.indexOf(v)==i&&NM[v]&&v!='refugio'&&v!='refv').slice(0,10).map(id=>{const o=Math.round(ilhaOf(id).ordem);const g=govOf(id),L=LEIS[g.t]||{},pl=MV.pol[id];return`<li>${esc2(nomeIlha(id))}: <b>${esc2(g.n)}</b> · ${g.t} · ordem ${o}${o<40?' · impostos +'+Math.round((40-o)/1.6)+'%':''}<br><small>Lei: ${esc2(L.n||'')} — ${esc2(L.d||'')}${pl&&pl.k=='acordo'&&DAY<=pl.ate?' · acordo comercial (-10%)':''}</small></li>`}).join('');
   const eco=Object.keys(Object.assign({},MV.eco,(G&&G.eco)||{})).filter(k=>ITEMS[k]).map(k=>[k,ecoOf(k)]).filter(a=>Math.abs(a[1])>=.03).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,8).map(([k,v])=>`<li>${esc2(ITEMS[k].n)}: <b style="color:${v>0?'#ff9a7a':'#8fe09a'}">${v>0?'▲ +':'▼ '}${Math.round(v*30)}%</b> ${v>0?'(muita procura)':'(muita oferta)'}</li>`).join('')||'<li>Preços estáveis.</li>';
   const apr=['luta','espada','tiro','poder'].map(k=>[k,resist(k)]).filter(a=>a[1]>0).map(([k,v])=>`<li>Resistência a ${ESTN2[k]}: ${Math.round(v*100)}%</li>`).join('')+(window.NAVAL&&NAVAL.adapt?`${NAVAL.adapt.enf<1.49?'<li>Enfiada: +'+Math.round((NAVAL.adapt.enf-1)*100)+'% (antes +50%)</li>':''}${NAVAL.adapt.burn<.99?'<li>Fogo dura '+Math.round(NAVAL.adapt.burn*100)+'%</li>':''}${NAVAL.adapt.slow<.99?'<li>Corrente prende '+Math.round(NAVAL.adapt.slow*100)+'%</li>':''}`:'')||'<li>Nada ainda: os inimigos aprendem com o estilo que você mais usa.</li>';
   const ar=AREAS.map(A=>`<li>${MV.areas[A.k]!=null?'✅':'🔒'} <b>${A.n}</b> — ${MV.areas[A.k]!=null?esc2(A.txt):'ainda fechada'}</li>`).join('')+'<li>✅ <b>Ilha do Refúgio</b> — barco no cais de Foosha; construa com B.</li>';
